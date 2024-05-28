@@ -4,6 +4,8 @@ import keyboard
 import itertools
 from PIL import Image
 from io import BytesIO
+import threading
+import time
 
 def change_wallpaper(image_path):
     # Convert the image path to a byte string
@@ -34,9 +36,16 @@ def rotate_image(image_path):
         rotated_img = img.transpose(Image.FLIP_LEFT_RIGHT)
     return rotated_img
 
+def change_wallpaper_periodically(image_iterator, interval):
+    while True:
+        current_image = next(image_iterator)
+        change_wallpaper(current_image)
+        print("Wallpaper automatically changed to", current_image)
+        time.sleep(interval)
+
 def main():
     # Set the folder path containing the images
-    folder_path = "folder address"  # Change this to the path of your images folder
+    folder_path = ""  # Change this to the path of your images folder
 
     # Get the list of images
     images = get_images_from_folder(folder_path)
@@ -47,21 +56,33 @@ def main():
     # Create an iterator to loop over the images
     image_iterator = itertools.cycle(images)
     current_image = next(image_iterator)  # Set the initial image
+    is_rotated = False  # Flag to track the rotation state
+
+    # Start the automatic wallpaper changer thread
+    interval = 30  # Change interval in seconds
+    threading.Thread(target=change_wallpaper_periodically, args=(image_iterator, interval), daemon=True).start()
 
     def on_keyboard_event(e):
-        nonlocal current_image
+        nonlocal current_image, is_rotated
         if e.name == 'space':  # Change wallpaper to the next image
             current_image = next(image_iterator)
             change_wallpaper(current_image)
+            is_rotated = False  # Reset rotation state when changing to the next image
             print("Wallpaper changed to", current_image)
         elif e.name == 'alt':  # Rotate the current image
-            rotated_image = rotate_image(current_image)
-            set_wallpaper_from_image(rotated_image)
-            print("Wallpaper rotated and changed")
+            if is_rotated:
+                change_wallpaper(current_image)  # Set back to the original image
+                is_rotated = False
+                print("Wallpaper reset to original", current_image)
+            else:
+                rotated_image = rotate_image(current_image)
+                set_wallpaper_from_image(rotated_image)
+                is_rotated = True
+                print("Wallpaper rotated and changed")
 
     keyboard.on_press(on_keyboard_event)
 
-    print("Press Space to change the wallpaper, Alt to rotate the current wallpaper.")
+    print("Press Space to change the wallpaper, Alt to toggle the current wallpaper rotation.")
     keyboard.wait('esc')  # Change 'esc' to any key you want to use to exit the script
 
 if __name__ == "__main__":
